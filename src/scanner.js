@@ -28,10 +28,26 @@ export async function runScanner(customPage = null) {
       return { success: false, message: "No hay campañas activas configuradas" };
     }
 
-    // Dynamic search terms collected from active campaigns (top 2 keywords per campaign)
-    const strategicQueries = new Set();
+    // Strategic transportation and delivery queries (always prioritized)
+    const TRANSPORT_CORE_QUERIES = [
+      'uber',
+      'carrera',
+      'carreras',
+      'movil',
+      'móvil',
+      'traslado',
+      'traslados',
+      'radiotaxi',
+      'taxi',
+      'delivery',
+      'encomienda'
+    ];
+
+    const strategicQueries = new Set(TRANSPORT_CORE_QUERIES);
+
+    // Also include top keywords from other active campaigns (food, home services, etc.)
     for (const c of activeCampaigns) {
-      if (Array.isArray(c.keywords)) {
+      if (c.id !== 'camp_radiotaxi' && Array.isArray(c.keywords)) {
         c.keywords.slice(0, 2).forEach(k => strategicQueries.add(k));
       }
     }

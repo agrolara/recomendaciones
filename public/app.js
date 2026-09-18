@@ -7,6 +7,7 @@ let currentCampaignFilter = 'all';
 
 document.addEventListener('DOMContentLoaded', async () => {
   await loadAllData();
+  setInterval(checkAgentStatus, 8000);
 });
 
 async function loadAllData() {
@@ -14,9 +15,27 @@ async function loadAllData() {
     fetchLeads(),
     fetchCampaigns(),
     fetchGroups(),
-    fetchSettings()
+    fetchSettings(),
+    checkAgentStatus()
   ]);
   renderAll();
+}
+
+async function checkAgentStatus() {
+  try {
+    const res = await fetch('/api/agent/status');
+    const data = await res.json();
+    const badge = document.getElementById('agent-status-badge');
+    if (!badge) return;
+
+    if (data.online) {
+      badge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5";
+      badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 radar-pulse"></span><span>Agente Local: Activo (Facebook Personal)</span>';
+    } else {
+      badge.className = "px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center gap-1.5";
+      badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span><span>Agente Local: En Espera</span>';
+    }
+  } catch (e) {}
 }
 
 async function fetchLeads() {
@@ -367,15 +386,48 @@ function renderGroups() {
 async function triggerScan() {
   const btn = document.getElementById('btn-scan');
   btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-arrows-rotate fa-spin"></i><span>Escaneando Solicitudes...</span>';
+  btn.innerHTML = '<i class="fa-solid fa-arrows-rotate fa-spin"></i><span>Iniciando Rastreo...</span>';
 
   try {
     const res = await fetch('/api/scan', { method: 'POST' });
     const data = await res.json();
-    await fetchLeads();
-    renderLeads();
-    updateCounters();
-    alert(`¡Escaneo finalizado exitosamente! 🎉\n\nSe detectaron y actualizaron las solicitudes de los grupos.`);
+
+    if (data.queued && data.jobId) {
+      btn.innerHTML = '<i class="fa-solid fa-satellite-dish fa-spin"></i><span>Agente Local Escaneando Facebook...</span>';
+
+      let finished = false;
+      const startPoll = Date.now();
+
+      while (!finished && (Date.now() - startPoll < 150000)) {
+        await new Promise(r => setTimeout(r, 3000));
+        try {
+          const checkRes = await fetch(`/api/jobs/${data.jobId}`);
+          const jobData = await checkRes.json();
+          await fetchLeads();
+          renderLeads();
+          updateCounters();
+
+          if (jobData.status === 'completed') {
+            finished = true;
+            alert(`¡Escaneo completado exitosamente! 🎉\n\nTu Agente Local rastreó los grupos de Facebook (Uber, taxis, móviles, carreras, traslados) y actualizó las solicitudes.`);
+            break;
+          } else if (jobData.status === 'failed') {
+            finished = true;
+            alert(`Aviso de escaneo: ${jobData.error || 'Ocurrió un inconveniente durante el rastreo'}`);
+            break;
+          }
+        } catch(e) {}
+      }
+
+      if (!finished) {
+        alert("El escaneo continúa ejecutándose en segundo plano con tu perfil de Facebook. Los resultados se actualizarán automáticamente en pantalla.");
+      }
+    } else {
+      await fetchLeads();
+      renderLeads();
+      updateCounters();
+      alert(`¡Escaneo finalizado exitosamente! 🎉\n\nSe detectaron y actualizaron las solicitudes de los grupos.`);
+    }
   } catch(e) {
     alert("Error al escanear: " + e.message);
   } finally {
@@ -396,7 +448,7 @@ async function publishLead(postId, postDirectUrl) {
   const btn = document.getElementById(`btn-pub-${postId}`);
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Publicando...';
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Publicando con Facebook...';
   }
 
   try {
@@ -407,23 +459,43 @@ async function publishLead(postId, postDirectUrl) {
     });
     const data = await res.json();
 
-    if (data.success) {
+    if (data.queued && data.jobId) {
+      // Poll comment job from cloud
+      let finished = false;
+      const startPoll = Date.now();
+      while (!finished && (Date.now() - startPoll < 45000)) {
+        await new Promise(r => setTimeout(r, 2500));
+        try {
+          const checkRes = await fetch(`/api/jobs/${data.jobId}`);
+          const jobData = await checkRes.json();
+          if (jobData.status === 'completed') {
+            finished = true;
+            alert(`¡Comentario publicado exitosamente en Facebook! 🎉\n\nTu perfil personal recomendó el servicio en la publicación directa.`);
+            await fetchLeads();
+            renderLeads();
+            updateCounters();
+            break;
+          } else if (jobData.status === 'failed') {
+            finished = true;
+            alert("Aviso de Seguridad: " + (jobData.error || 'No se pudo publicar'));
+            break;
+          }
+        } catch(e) {}
+      }
+    } else if (data.success) {
       alert(`¡Comentario publicado exitosamente en Facebook! 🎉\n\nTu perfil personal recomendó el servicio en la publicación directa.`);
       await fetchLeads();
       renderLeads();
       updateCounters();
     } else {
       alert("Aviso de Seguridad: " + (data.error || 'No se pudo publicar'));
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i><span>Reintentar Publicación</span>';
-      }
     }
   } catch(e) {
     alert("Error de conexión: " + e.message);
+  } finally {
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i><span>Reintentar Publicación</span>';
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i><span>Publicar con Facebook Personal</span>';
     }
   }
 }

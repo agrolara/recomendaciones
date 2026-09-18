@@ -1,12 +1,15 @@
 // GLOBAL INTENT PATTERNS: Expressing a customer need or question
 const INTENT_PATTERNS = [
-  /\b(?:busco|busca|buscando|necesito|requiero|preciso|solicito)\s+(?:un|una|alg[uú]n|algun|el|la|buen|buena)?\b/i,
+  /\b(?:busco|busca|buscando|necesito|requiero|preciso|solicito)\s+(?:un|una|alg[uú]n|algun|el|la|buen|buena)?\s*(?:radiotaxi|radio\s*taxi|taxi|uber|didi|indrive|movil|móvil|movilizaci[oó]n|transporte|carrera|carreras|chofer|auto|viaje|viajes|veh[ií]culo|delivery|encomienda|encomiendas)?\b/i,
   /\b(?:alg[uú]n|algun|algunos|alguna)\s+(?:dato|lugar|contacto|número|numero|picada|local|recomendaci[oó]n|recomendacion)\b/i,
-  /\b(?:qui[eé]n|quien)\s+(?:hace|vende|tiene|recomienda|va\s+a|est[aá]\s+haciendo)\b/i,
+  /\b(?:qui[eé]n|quien)\s+(?:hace|va\s+a|est[aá]\s+haciendo|viaja\s+a|sale\s+a)\s+(?:carreras?|viajes?|traslados?|fletes?|delivery|repartos?)\b/i,
+  /\balguien\s+(?:que\s+)?(?:hace|haga|vaya|viaje|est[eé]\s+disponible|disponible\s+para)\s+(?:carreras?|viajes?|traslados?|delivery|encomiendas?)\b/i,
+  /\bsolicitud\s+de\s+(?:m[oó]vil|movil|taxi|transporte|carreras?|viajes?)\b/i,
+  /\b(?:alg[uú]n|algun|necesito|busco)\s+(?:uber|taxi|radiotaxi|m[oó]vil|movil|chofer|auto|viaje|carrera|traslado)\b/i,
+  /\b(?:traslado|trasladarme|trasladar|ir\s+a|viajar\s+a|llegar\s+a)\s+(?:desde|hacia|a|urgente)\b/i,
+  /\b(?:delivery|despacho|encomienda|encomiendas|paquete)\s+(?:urgente|disponible|para|a)\b/i,
   /\b(?:d[oó]nde|donde)\s+(?:puedo\s+comprar|venden|hacen|encuentro|piden)\b/i,
-  /\b(?:recomienden|recomiendenme|recomendar|alguna\s+recomendaci[oó]n)\b/i,
-  /\b(?:alguien\s+que\s+haga|alguien\s+disponible|alguien\s+hace)\b/i,
-  /\b(?:delivery\s+a|despacho\s+a|urgente|disponible\s+ahora)\b/i
+  /\b(?:recomienden|recomiendenme|recomendar|alguna\s+recomendaci[oó]n)\b/i
 ];
 
 // GLOBAL AD / SPAM EXCLUSION PATTERNS

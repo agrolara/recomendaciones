@@ -137,22 +137,142 @@ app.post('/api/leads/status', async (req, res) => {
   }
 });
 
-// SCANNER
+let lastAgentHeartbeat = 0;
+let pendingJobs = [];
+
+// AGENT HEARTBEAT & STATUS
+app.post('/api/agent/heartbeat', (req, res) => {
+  lastAgentHeartbeat = Date.now();
+  res.json({ ok: true, serverTime: Date.now() });
+});
+
+app.get('/api/agent/status', (req, res) => {
+  const isOnline = (Date.now() - lastAgentHeartbeat) < 30000;
+  res.json({
+    online: isOnline,
+    lastSeenSecondsAgo: lastAgentHeartbeat ? Math.round((Date.now() - lastAgentHeartbeat) / 1000) : null,
+    pendingJobs: pendingJobs.filter(j => j.status === 'pending').length
+  });
+});
+
+// JOB QUEUE (Bridge between Cloud and Local Agent)
+app.get('/api/jobs/pending', (req, res) => {
+  const job = pendingJobs.find(j => j.status === 'pending');
+  if (job) {
+    job.status = 'processing';
+  }
+  res.json({ job: job || null });
+});
+
+app.post('/api/jobs/:id/complete', async (req, res) => {
+  const { leads, found, error } = req.body;
+  const job = pendingJobs.find(j => j.id === req.params.id);
+  if (job) {
+    job.status = error ? 'failed' : 'completed';
+    job.error = error;
+    job.completed_at = Date.now();
+    job.found = found ?? (leads ? leads.length : 0);
+  }
+  if (Array.isArray(leads)) {
+    for (const l of leads) {
+      await saveLead(l);
+    }
+  }
+  res.json({ success: true });
+});
+
+app.get('/api/jobs/:id', (req, res) => {
+  const job = pendingJobs.find(j => j.id === req.params.id);
+  res.json(job || { status: 'not_found' });
+});
+
+// SYNC LEADS
+app.post('/api/leads/sync', async (req, res) => {
+  try {
+    const { leads } = req.body;
+    let count = 0;
+    if (Array.isArray(leads)) {
+      for (const l of leads) {
+        await saveLead(l);
+        count++;
+      }
+    }
+    res.json({ success: true, count });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// SCANNER (DUAL MODE: LOCAL DIRECT OR CLOUD QUEUE)
 app.post('/api/scan', async (req, res) => {
   try {
-    const result = await runScanner();
-    res.json(result);
+    let PageClass = null;
+    try {
+      const module = await import('file:///C:/Users/Usuario/AppData/Roaming/npm/node_modules/@jackwener/opencli/dist/src/browser/page.js');
+      PageClass = module.Page;
+    } catch(e) {}
+
+    if (PageClass) {
+      // Local server with browser connected
+      const result = await runScanner();
+      res.json({ ...result, mode: 'local' });
+    } else {
+      // Cloud server: Queue job for local agent
+      const job = {
+        id: 'scan_' + Date.now(),
+        type: 'scan',
+        status: 'pending',
+        created_at: Date.now()
+      };
+      pendingJobs.push(job);
+      if (pendingJobs.length > 25) pendingJobs.shift();
+      res.json({
+        success: true,
+        queued: true,
+        jobId: job.id,
+        message: "Escaneo solicitado a tu Agente Local con Facebook...",
+        mode: 'cloud_queue'
+      });
+    }
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-// COMMENTER
+// COMMENTER (DUAL MODE: LOCAL DIRECT OR CLOUD QUEUE)
 app.post('/api/comment', async (req, res) => {
   try {
     const { postId, postDirectUrl, commentText } = req.body;
-    const result = await publishComment({ postId, postDirectUrl, commentText });
-    res.json(result);
+
+    let PageClass = null;
+    try {
+      const module = await import('file:///C:/Users/Usuario/AppData/Roaming/npm/node_modules/@jackwener/opencli/dist/src/browser/page.js');
+      PageClass = module.Page;
+    } catch(e) {}
+
+    if (PageClass) {
+      const result = await publishComment({ postId, postDirectUrl, commentText });
+      res.json({ ...result, mode: 'local' });
+    } else {
+      const job = {
+        id: 'comment_' + Date.now(),
+        type: 'comment',
+        postId,
+        postDirectUrl,
+        commentText,
+        status: 'pending',
+        created_at: Date.now()
+      };
+      pendingJobs.push(job);
+      if (pendingJobs.length > 25) pendingJobs.shift();
+      res.json({
+        success: true,
+        queued: true,
+        jobId: job.id,
+        message: "Comentario enviado para ser publicado por tu cuenta personal de Facebook...",
+        mode: 'cloud_queue'
+      });
+    }
   } catch (e) {
     res.status(400).json({ success: false, error: e.message });
   }
