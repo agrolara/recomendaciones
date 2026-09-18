@@ -302,7 +302,9 @@ app.post('/api/settings', async (req, res) => {
 
 app.post('/api/ai/test', async (req, res) => {
   try {
-    const { apiKey, model } = req.body;
+    const settings = await getSettings();
+    const apiKey = req.body?.apiKey || settings.openrouter_api_key;
+    const model = req.body?.model || settings.openrouter_model || "deepseek/deepseek-chat";
     const result = await testOpenRouterKey(apiKey, model);
     res.json(result);
   } catch (e) {
