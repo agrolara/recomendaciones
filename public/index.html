@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recomendaciones AI - Radar Multifuncional de Demanda</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { background-color: #070c18; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    .glass-card { background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(51, 65, 85, 0.6); }
+    .glass-card:hover { border-color: rgba(100, 116, 139, 0.8); }
+    .radar-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.95); } }
+    .glow-amber { animation: glowAmber 2s ease-in-out infinite alternate; }
+    @keyframes glowAmber { from { box-shadow: 0 0 8px -2px #f59e0b; } to { box-shadow: 0 0 20px 3px #f59e0b; } }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+  </style>
+</head>
+<body class="p-3 md:p-6 antialiased min-h-screen">
+  <div class="max-w-6xl mx-auto space-y-6">
+
+    <!-- TOP HEADER -->
+    <header class="glass-card p-4 md:p-6 rounded-2xl shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div class="flex items-center gap-3.5">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-400 via-orange-500 to-yellow-300 flex items-center justify-center text-slate-950 font-black text-2xl shadow-lg glow-amber">
+          🌟
+        </div>
+        <div>
+          <div class="flex items-center gap-2.5 flex-wrap">
+            <h1 class="text-2xl font-black text-white tracking-tight">Recomendaciones AI</h1>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 radar-pulse"></span>
+              Plataforma Multifuncional Activa
+            </span>
+            <span id="active-model-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-blue-500/10 text-blue-300 border border-blue-500/30">
+              🤖 DeepSeek V3 / Determinístico
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">
+            Detección inteligente de solicitudes en grupos de Facebook · Generación de recomendaciones en 3ra persona vía tu perfil personal
+          </p>
+        </div>
+      </div>
+
+      <!-- HEADER ACTIONS -->
+      <div class="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
+        <button id="btn-scan" onclick="triggerScan()" class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 transform active:scale-95">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          <span>Escanear Grupos Ahora</span>
+        </button>
+        <button onclick="openNewCampaignModal()" class="px-3.5 py-2.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-xl border border-amber-500/40 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-plus"></i>
+          <span>Nueva Campaña</span>
+        </button>
+        <button onclick="switchTab('settings')" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold rounded-xl border border-slate-700 transition" title="Configuración de IA">
+          <i class="fa-solid fa-gear text-base"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- NAVIGATION TABS -->
+    <nav class="flex items-center gap-2 border-b border-slate-800 pb-1 overflow-x-auto scrollbar-thin">
+      <button id="tab-btn-leads" onclick="switchTab('leads')" class="px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-2 bg-amber-500/20 text-amber-300 border border-amber-500/40">
+        <i class="fa-solid fa-radar"></i>
+        <span>Radar de Solicitudes</span>
+        <span id="tab-counter-leads" class="px-1.5 py-0.2 bg-amber-500/30 rounded-full text-[10px]">1</span>
+      </button>
+      <button id="tab-btn-campaigns" onclick="switchTab('campaigns')" class="px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-2 bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-800">
+        <i class="fa-solid fa-layer-group"></i>
+        <span>Campañas & Clientes</span>
+        <span id="tab-counter-campaigns" class="px-1.5 py-0.2 bg-slate-700 rounded-full text-[10px]">5</span>
+      </button>
+      <button id="tab-btn-groups" onclick="switchTab('groups')" class="px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-2 bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-800">
+        <i class="fa-brands fa-facebook"></i>
+        <span>Grupos Monitoreados</span>
+        <span id="tab-counter-groups" class="px-1.5 py-0.2 bg-slate-700 rounded-full text-[10px]">14</span>
+      </button>
+      <button id="tab-btn-settings" onclick="switchTab('settings')" class="px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-2 bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-800">
+        <i class="fa-solid fa-robot"></i>
+        <span>Configuración IA (OpenRouter)</span>
+      </button>
+    </nav>
+
+    <!-- ============================================== -->
+    <!-- TAB 1: RADAR DE SOLICITUDES (LEADS) -->
+    <!-- ============================================== -->
+    <main id="tab-content-leads" class="space-y-4">
+
+      <!-- FILTER BAR -->
+      <div class="glass-card p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-slate-400 font-bold mr-1">Filtrar por Tiempo:</span>
+          <button id="filter-btn-all" onclick="setTimeFilter('all')" class="px-2.5 py-1 rounded-lg font-bold border transition bg-amber-500/20 text-amber-300 border-amber-500/40">
+            Todas (<span id="count-all">0</span>)
+          </button>
+          <button id="filter-btn-2h" onclick="setTimeFilter('2h')" class="px-2.5 py-1 rounded-lg font-bold border transition bg-slate-800 text-slate-300 border-slate-700 hover:text-emerald-300">
+            🟢 Ventana 1 a 2 Horas (<span id="count-2h">0</span>)
+          </button>
+          <button id="filter-btn-4h" onclick="setTimeFilter('4h')" class="px-2.5 py-1 rounded-lg font-bold border transition bg-slate-800 text-slate-300 border-slate-700 hover:text-blue-300">
+            🟡 Menos de 4 Horas (<span id="count-4h">0</span>)
+          </button>
+
+          <span class="text-slate-600 font-bold mx-1">|</span>
+
+          <!-- CAMPAIGN FILTER -->
+          <select id="filter-campaign-select" onchange="applyFilters()" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-amber-400">
+            <option value="all">Todas las Campañas</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-1 text-[11px] text-emerald-400 font-mono">
+          <i class="fa-solid fa-arrow-down-short-wide"></i>
+          <span>Orden: Menor tiempo a mayor tiempo (Más recientes primero)</span>
+        </div>
+      </div>
+
+      <!-- LEADS CARDS CONTAINER -->
+      <div id="leads-container" class="space-y-4">
+        <!-- Dynamically injected leads -->
+      </div>
+    </main>
+
+    <!-- ============================================== -->
+    <!-- TAB 2: GESTOR DE CAMPAÑAS & CLIENTES -->
+    <!-- ============================================== -->
+    <section id="tab-content-campaigns" class="space-y-4 hidden">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-layer-group text-amber-400"></i>
+            <span>Campañas de Clientes y Servicios</span>
+          </h2>
+          <p class="text-xs text-slate-400">Configura los servicios que recomiendas con sus palabras clave, exclusiones y datos de contacto.</p>
+        </div>
+        <button onclick="openNewCampaignModal()" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5">
+          <i class="fa-solid fa-plus"></i>
+          <span>Agregar Cliente / Servicio</span>
+        </button>
+      </div>
+
+      <div id="campaigns-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Dynamically injected campaign cards -->
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- TAB 3: GRUPOS MONITOREADOS -->
+    <!-- ============================================== -->
+    <section id="tab-content-groups" class="space-y-4 hidden">
+      <div class="glass-card p-4 rounded-2xl space-y-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-plus text-blue-400"></i>
+          <span>Agregar Nuevo Grupo de Facebook</span>
+        </h3>
+        <p class="text-xs text-slate-400">Pega el enlace directo de cualquier grupo de Facebook donde quieras detectar clientes potenciales.</p>
+        <div class="flex gap-2">
+          <input type="text" id="input-new-group" placeholder="https://www.facebook.com/groups/nombre_o_id_del_grupo/" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono">
+          <button onclick="addManualGroup()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center gap-1.5">
+            <i class="fa-solid fa-link"></i>
+            <span>Monitorear</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="groups-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <!-- Dynamically injected groups -->
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- TAB 4: CONFIGURACIÓN IA (OPENROUTER) -->
+    <!-- ============================================== -->
+    <section id="tab-content-settings" class="glass-card p-5 rounded-2xl space-y-5 hidden">
+      <div>
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-robot text-amber-400"></i>
+          <span>Configuración de Inteligencia Artificial (OpenRouter)</span>
+        </h2>
+        <p class="text-xs text-slate-400 mt-1">Conecta tu API Key de OpenRouter para redactar recomendaciones hiperpersonalizadas y creativas.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- API KEY -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-bold text-slate-300">OpenRouter API Key:</label>
+          <div class="relative">
+            <input type="password" id="input-openrouter-key" placeholder="sk-or-v1-..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:outline-none focus:border-amber-400">
+            <button type="button" onclick="togglePasswordVisibility('input-openrouter-key')" class="absolute right-3 top-2.5 text-slate-400 hover:text-white text-xs">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-500">Si no configuras clave, el sistema usará plantillas dinámicas determinísticas sin costo.</p>
+        </div>
+
+        <!-- MODEL SELECTOR -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-bold text-slate-300">Modelo de Lenguaje (LLM):</label>
+          <select id="select-ai-model" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400 font-mono">
+            <option value="deepseek/deepseek-chat">DeepSeek V3 (Recomendado · Ultra Económico ~$0.14/1M)</option>
+            <option value="meta-llama/llama-3.3-70b-instruct">Llama 3.3 70B (Alta Calidad · Económico ~$0.30/1M)</option>
+            <option value="google/gemini-flash-1.5">Google Gemini 1.5 Flash (Súper Rápido ~$0.075/1M)</option>
+            <option value="anthropic/claude-3-haiku">Claude 3 Haiku (Conciso ~$0.25/1M)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- TEST BUTTON & STATUS -->
+      <div class="p-3.5 bg-slate-900/80 rounded-xl border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <span class="text-xs font-bold text-slate-300 block">Probar Conexión con OpenRouter:</span>
+          <span id="test-ai-result" class="text-[11px] text-slate-400">Listo para comprobar credenciales.</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="testAiConnection()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-flask"></i>
+            <span>Probar Conexión</span>
+          </button>
+          <button onclick="saveAiSettings()" class="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow transition flex items-center gap-1.5">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Guardar Ajustes</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================== -->
+    <!-- MODAL: CREAR / EDITAR CAMPAÑA -->
+    <!-- ============================================== -->
+    <div id="modal-campaign" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+      <div class="glass-card max-w-2xl w-full rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto scrollbar-thin border border-slate-700 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 id="modal-campaign-title" class="text-base font-bold text-white flex items-center gap-2">
+            <span>✨</span> Nueva Campaña de Servicio / Cliente
+          </h3>
+          <button onclick="closeCampaignModal()" class="text-slate-400 hover:text-white text-base">✕</button>
+        </div>
+
+        <input type="hidden" id="camp-id">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="text-[11px] font-bold text-slate-300 block mb-1">Nombre del Servicio / Cliente:</label>
+            <input type="text" id="camp-name" placeholder="Ej: Cevichería El Sol" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-400">
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-300 block mb-1">Categoría:</label>
+            <input type="text" id="camp-category" placeholder="Ej: Gastronomía, Transporte, Hogar" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-400">
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-300 block mb-1">Mención / Marca en Facebook:</label>
+            <input type="text" id="camp-brand-tag" placeholder="Ej: @radiotaxi fullexpress" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-400 font-mono">
+          </div>
+          <div>
+            <label class="text-[11px] font-bold text-slate-300 block mb-1">Teléfono / WhatsApp de Contacto:</label>
+            <input type="text" id="camp-phone" placeholder="Ej: +56 9 3024 7992" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-400 font-mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-300 block mb-1">Palabras Clave de Búsqueda (separadas por coma):</label>
+          <input type="text" id="camp-keywords" placeholder="uber, taxi, radiotaxi, carrera, traslado, delivery" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-400 font-mono">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-300 block mb-1">Palabras Negativas / Exclusiones (descarta anuncios de otros):</label>
+          <input type="text" id="camp-negative-keywords" placeholder="ofrezco, venta de auto, se vende, flete" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-400 font-mono">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-300 block mb-1">Servicios Destacados / Beneficios:</label>
+          <input type="text" id="camp-highlights" placeholder="Traslados de personas, delivery de cosas y transporte de encomiendas 24/7" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-amber-400">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-rose-400 block mb-1">Restricciones Estrictas (Prohibiciones):</label>
+          <input type="text" id="camp-restrictions" placeholder="Ej: ESTRICTAMENTE PROHIBIDO decir fletes." class="w-full bg-slate-900 border border-rose-900/50 rounded-xl px-3 py-2 text-xs text-rose-200 focus:border-rose-400">
+        </div>
+
+        <div>
+          <label class="text-[11px] font-bold text-slate-300 block mb-1">Plantilla de Recomendación en 3ra Persona ({nombre}, {marca}, {telefono}):</label>
+          <textarea id="camp-template" rows="2" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:border-amber-400"></textarea>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-800">
+          <button onclick="closeCampaignModal()" class="px-4 py-2 bg-slate-800 text-slate-300 text-xs font-bold rounded-xl hover:bg-slate-700 transition">Cancelar</button>
+          <button onclick="saveCampaignModal()" class="px-5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 text-xs font-black rounded-xl hover:brightness-110 transition">Guardar Campaña</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
