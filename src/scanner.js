@@ -30,7 +30,7 @@ export async function runScanner(customPage = null) {
     const settings = await getSettings();
 
     const maxAgeMinutesAllowed = settings.time_window_margin_minutes || 180; // Máximo 3 horas por defecto
-    const activeGroups = groups.filter(g => g.is_active).slice(0, 8);
+    const activeGroups = groups.filter(g => g.is_active);
     const activeCampaigns = campaigns.filter(c => c.is_active);
 
     if (activeCampaigns.length === 0) {

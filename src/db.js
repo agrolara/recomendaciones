@@ -23,7 +23,21 @@ const INITIAL_GROUPS = [
   { id: "246269595753358", name: "Solo Delivery Quilicura", zone: "Quilicura", url: "https://www.facebook.com/groups/246269595753358/", is_active: true },
   { id: "1441002372618069", name: "Quilicura - Conchali - Independencia delivery 24/7", zone: "Quilicura", url: "https://www.facebook.com/groups/1441002372618069/", is_active: true },
   { id: "476939909747244", name: "Quilicura vende de todo !!!!", zone: "Quilicura", url: "https://www.facebook.com/groups/476939909747244/", is_active: true },
-  { id: "marcelabrunet", name: "QUILICURA VENTAS SOLO ENTREGAS", zone: "Quilicura", url: "https://www.facebook.com/groups/marcelabrunet/", is_active: true }
+  { id: "marcelabrunet", name: "QUILICURA VENTAS SOLO ENTREGAS", zone: "Quilicura", url: "https://www.facebook.com/groups/marcelabrunet/", is_active: true },
+  { id: "9597264843672479", name: "Soy de Quilicura", zone: "Quilicura", url: "https://www.facebook.com/groups/9597264843672479/", is_active: true },
+  { id: "596358183485341", name: "QUILICURA VENDE", zone: "Quilicura", url: "https://www.facebook.com/groups/596358183485341/", is_active: true },
+  { id: "1292459598492725", name: "QUILICURA VENDE", zone: "Quilicura", url: "https://www.facebook.com/groups/1292459598492725/", is_active: true },
+  { id: "2054102801487630", name: "Grupo de Quilicura vende 3.0", zone: "Quilicura", url: "https://www.facebook.com/groups/2054102801487630/", is_active: true },
+  { id: "1903198506590520", name: "Quilicura Todo Ventas", zone: "Quilicura", url: "https://www.facebook.com/groups/1903198506590520/", is_active: true },
+  { id: "914645918738692", name: "Quilicura vende 2", zone: "Quilicura", url: "https://www.facebook.com/groups/914645918738692/", is_active: true },
+  { id: "302913778128707", name: "Quilicura vende barato", zone: "Quilicura", url: "https://www.facebook.com/groups/302913778128707/", is_active: true },
+  { id: "320632075987436", name: "Quilicura vende", zone: "Quilicura", url: "https://www.facebook.com/groups/320632075987436/", is_active: true },
+  { id: "690518758916912", name: "QUILICURA TRABAJOS 💪", zone: "Quilicura", url: "https://www.facebook.com/groups/690518758916912/", is_active: true },
+  { id: "242907387478340", name: "QUILICURA VENNDDEE", zone: "Quilicura", url: "https://www.facebook.com/groups/242907387478340/", is_active: true },
+  { id: "1634745979943731", name: "Quilicura Vende de todo chile 🇨🇱", zone: "Quilicura", url: "https://www.facebook.com/groups/1634745979943731/", is_active: true },
+  { id: "350915932313761", name: "QUILICURA DATOS DE PEGA", zone: "Quilicura", url: "https://www.facebook.com/groups/350915932313761/", is_active: true },
+  { id: "1906722959618875", name: "Quilicura", zone: "Quilicura", url: "https://www.facebook.com/groups/1906722959618875/", is_active: true },
+  { id: "588725746638760", name: "Quilicura vende", zone: "Quilicura", url: "https://www.facebook.com/groups/588725746638760/", is_active: true }
 ];
 
 const INITIAL_SETTINGS = {
@@ -91,7 +105,28 @@ function readLocalDb() {
 
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!parsed.groups) parsed.groups = [];
+    const groupMap = new Map(parsed.groups.map(g => [g.id, g]));
+    let modified = false;
+    for (const initG of INITIAL_GROUPS) {
+      if (!groupMap.has(initG.id)) {
+        groupMap.set(initG.id, { ...initG });
+        modified = true;
+      } else {
+        const current = groupMap.get(initG.id);
+        if (current.name && current.name.startsWith('Grupo Facebook') && !initG.name.startsWith('Grupo Facebook')) {
+          current.name = initG.name;
+          current.zone = initG.zone;
+          modified = true;
+        }
+      }
+    }
+    if (modified) {
+      parsed.groups = Array.from(groupMap.values());
+      try { fs.writeFileSync(DB_FILE, JSON.stringify(parsed, null, 2), 'utf8'); } catch (e) {}
+    }
+    return parsed;
   } catch (e) {
     console.error("[DB] Error leyendo JSON local, regenerando:", e.message);
     return {
@@ -230,6 +265,21 @@ export async function deleteGroup(id) {
   db.groups = db.groups.filter(g => g.id !== id);
   writeLocalDb(db);
   return true;
+}
+
+export async function syncGroups(groupsList) {
+  const db = readLocalDb();
+  const existingMap = new Map((db.groups || []).map(g => [g.id, g]));
+  for (const g of groupsList) {
+    if (existingMap.has(g.id)) {
+      existingMap.set(g.id, { ...existingMap.get(g.id), ...g });
+    } else {
+      existingMap.set(g.id, g);
+    }
+  }
+  db.groups = Array.from(existingMap.values());
+  writeLocalDb(db);
+  return db.groups;
 }
 
 export async function updateGroupWatermark(id, { last_scanned_time, last_scanned_post_id }) {

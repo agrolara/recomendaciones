@@ -13,6 +13,7 @@ import {
   getGroups,
   addGroup,
   deleteGroup,
+  syncGroups,
   getLeads,
   saveLead,
   deleteLead,
@@ -82,33 +83,48 @@ app.get('/api/groups', async (req, res) => {
 
 app.post('/api/groups', async (req, res) => {
   try {
-    const { urlOrId } = req.body;
-    let id = (urlOrId || '').trim();
+    const { urlOrId, id: customId, name: customName, zone: customZone, url: customUrl } = req.body;
+    let id = (customId || urlOrId || '').trim();
     if (id.includes('/groups/')) {
       const m = id.match(/groups\/([^\/?#]+)/);
       if (m) id = m[1];
     }
     if (!id) throw new Error("Enlace o ID de grupo inválido");
 
-    let zone = "Santiago Norte";
-    if (/campino|blc/i.test(urlOrId)) zone = "Valle Lo Campino";
-    if (/grande/i.test(urlOrId)) zone = "Valle Grande";
-    if (/quilicura/i.test(urlOrId)) zone = "Quilicura";
+    let zone = customZone || "Santiago Norte";
+    if (!customZone) {
+      if (/campino|blc/i.test(urlOrId || id)) zone = "Valle Lo Campino";
+      if (/grande/i.test(urlOrId || id)) zone = "Valle Grande";
+      if (/quilicura/i.test(urlOrId || id)) zone = "Quilicura";
+    }
 
-    let name = "Grupo Facebook " + id;
-    if (id === "269357883401410") name = "QUILICURA VENDE y COMPRA de todo ..";
+    let name = customName || ("Grupo Facebook " + id);
+    if (id === "269357883401410" && !customName) name = "QUILICURA VENDE y COMPRA de todo ..";
 
     const group = await addGroup({
       id,
       name,
       zone,
-      url: urlOrId.startsWith('http') ? urlOrId : `https://www.facebook.com/groups/${id}/`,
+      url: customUrl || (urlOrId && urlOrId.startsWith('http') ? urlOrId : `https://www.facebook.com/groups/${id}/`),
       is_active: true
     });
 
     res.json({ success: true, group });
   } catch (e) {
     res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/groups/sync', async (req, res) => {
+  try {
+    const groupsList = req.body.groups || req.body;
+    if (!Array.isArray(groupsList)) {
+      return res.status(400).json({ error: "Se esperaba un array de grupos" });
+    }
+    const updated = await syncGroups(groupsList);
+    res.json({ success: true, count: updated.length, groups: updated });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
