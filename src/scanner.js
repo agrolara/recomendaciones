@@ -1,16 +1,25 @@
-import { getGroups, getCampaigns, saveLead, getSettings } from './db.js';
+import { getGroups, getCampaigns, saveLead, getSettings, updateGroupWatermark, cleanOldLeads } from './db.js';
 import { matchPostToCampaign } from './matcher.js';
 import { generateAiReply } from './ai.js';
 
 let isScanning = false;
 
+/**
+ * Escáner de grupos de Facebook de alta precisión:
+ * 1. Muro Cronológico (?sorting_setting=CHRONOLOGICAL): Lee publicaciones en tiempo real desde la más reciente.
+ * 2. Marca de Agua (Watermark): Recuerda la última publicación vista para detenerse y no revisar hacia atrás.
+ * 3. Corte Estricto de Antigüedad: Descarta inmediatamente cualquier publicación mayor a 2-3 horas.
+ * 4. Multi-campaña: Evalúa todas las campañas activas en una sola pasada.
+ */
 export async function runScanner(customPage = null) {
   if (isScanning) {
     return { success: false, message: "Escaneo ya en curso" };
   }
 
   isScanning = true;
-  console.log("[Scanner] Iniciando escaneo multifuncional de campañas...");
+  console.log("=================================================");
+  console.log("⚡ [Scanner] Iniciando escaneo cronológico inteligente...");
+  console.log("=================================================");
 
   const foundLeads = [];
   const currentEpoch = Math.floor(Date.now() / 1000);
@@ -20,38 +29,14 @@ export async function runScanner(customPage = null) {
     const campaigns = await getCampaigns();
     const settings = await getSettings();
 
-    const activeGroups = groups.filter(g => g.is_active).slice(0, 6);
+    const maxAgeMinutesAllowed = settings.time_window_margin_minutes || 180; // Máximo 3 horas por defecto
+    const activeGroups = groups.filter(g => g.is_active).slice(0, 8);
     const activeCampaigns = campaigns.filter(c => c.is_active);
 
     if (activeCampaigns.length === 0) {
-      console.warn("[Scanner] No hay campañas activas.");
+      console.warn("[Scanner] No hay campañas activas configuradas.");
       return { success: false, message: "No hay campañas activas configuradas" };
     }
-
-    // Strategic transportation and delivery queries (always prioritized)
-    const TRANSPORT_CORE_QUERIES = [
-      'uber',
-      'carrera',
-      'carreras',
-      'movil',
-      'móvil',
-      'traslado',
-      'traslados',
-      'radiotaxi',
-      'taxi',
-      'delivery',
-      'encomienda'
-    ];
-
-    const strategicQueries = new Set(TRANSPORT_CORE_QUERIES);
-
-    // Also include top keywords from other active campaigns (food, home services, etc.)
-    for (const c of activeCampaigns) {
-      if (c.id !== 'camp_radiotaxi' && Array.isArray(c.keywords)) {
-        c.keywords.slice(0, 2).forEach(k => strategicQueries.add(k));
-      }
-    }
-    const searchQueries = Array.from(strategicQueries);
 
     // Dynamic import of OpenCLI Page if available locally
     let PageClass = null;
@@ -63,27 +48,35 @@ export async function runScanner(customPage = null) {
     }
 
     if (!PageClass && !customPage) {
-      console.log("[Scanner] Ejecutando en modo Cloud/Sin navegador local directo.");
+      console.log("[Scanner] Modo Cloud activo.");
       return { success: true, message: "Modo nube activo", found: 0 };
     }
 
     const page = customPage || new PageClass('b9mz6zfk');
 
     for (const group of activeGroups) {
-      console.log(`[Scanner] Grupo: ${group.name} (${group.id})...`);
+      console.log(`\n🔍 [Scanner] Grupo: ${group.name} (${group.id})`);
 
-      for (const query of searchQueries) {
-        const searchUrl = `https://www.facebook.com/groups/${group.id}/search/?q=${encodeURIComponent(query)}`;
-        console.log(`[Scanner] -> Buscando término "${query}" en ${group.name}...`);
+      // Marca de agua: Si no existe, revisar como máximo las últimas 3 horas
+      const watermarkTime = group.last_scanned_time || (currentEpoch - (maxAgeMinutesAllowed * 60));
+      const watermarkPostId = group.last_scanned_post_id || null;
 
-        await page.goto(searchUrl, { waitUntil: 'load', settleMs: 3000 }).catch(console.error);
-        await new Promise(r => setTimeout(r, 2000));
+      console.log(`   ⏱️ Marca de agua: ${group.last_scanned_time ? new Date(group.last_scanned_time * 1000).toLocaleTimeString('es-CL') : 'Primera vez (últimas 3h)'}`);
 
-        const extractedLeads = await page.evaluate(({ groupInfo, currentEpoch }) => {
-          // Extract Relay stories from script tags
+      // 1. Navegar al feed cronológico ("Publicaciones nuevas")
+      const chronoUrl = `https://www.facebook.com/groups/${group.id}/?sorting_setting=CHRONOLOGICAL`;
+      await page.goto(chronoUrl, { waitUntil: 'load', settleMs: 2500 }).catch(console.error);
+      await new Promise(r => setTimeout(r, 1500));
+
+      let newestPostIdSeen = null;
+      let reachedWatermark = false;
+
+      // Scroll inteligente: hasta 3 iteraciones progresivas hacia abajo
+      for (let scrollStep = 0; scrollStep < 3; scrollStep++) {
+        const extractedPosts = await page.evaluate(({ currentEpoch }) => {
+          // Extraer datos Relay de los scripts
           const scripts = Array.from(document.querySelectorAll('script')).map(s => s.innerText);
           const relayStories = [];
-
           for (const sc of scripts) {
             if (!sc.includes('"post_id"')) continue;
             const regex = /"owning_profile":\{"__typename":"User","name":"([^"]+)"[\s\S]*?"post_id":"(\d+)"[\s\S]*?"creation_time":(\d+)/g;
@@ -100,18 +93,18 @@ export async function runScanner(customPage = null) {
             }
           }
 
-          // Extract visible cards in feed
           const feed = document.querySelector('div[role="feed"]');
-          const cards = feed ? Array.from(feed.children) : [];
+          if (!feed) return [];
+          const cards = Array.from(feed.children);
           const items = [];
 
           for (const card of cards) {
             let text = (card.innerText || '').replace(/(?:Facebook\s*)+/gi, '').trim();
-            if (text.length < 25 || text.includes('Filtros') || text.includes('Resultados de búsqueda')) continue;
+            if (text.length < 25 || text.includes('ordenar feed') || text.includes('Filtros')) continue;
 
             const userLinks = Array.from(card.querySelectorAll('a[href*="/user/"]'));
             const authorEl = userLinks.find(a => a.innerText && a.innerText.trim().length > 2);
-            let author = authorEl ? authorEl.innerText.trim() : 'Vecino de ' + groupInfo.zone;
+            let author = authorEl ? authorEl.innerText.trim() : 'Vecino';
             author = author.replace(/^(?:Publicación de|Comentario de)\s*/i, '').trim();
 
             let matchedStory = relayStories.find(s => s.author.toLowerCase() === author.toLowerCase());
@@ -146,59 +139,77 @@ export async function runScanner(customPage = null) {
               timeLabel = matchedStory.dateString;
             }
 
-            const cleanUrl = `https://www.facebook.com/groups/${groupInfo.id}/posts/${postId}/`;
-
             items.push({
               postId,
               author,
               creationTime,
-              ageSeconds: ageSeconds != null ? ageSeconds : 999999,
-              ageMinutes: ageMinutes != null ? ageMinutes : 999999,
+              ageSeconds: ageSeconds != null ? ageSeconds : 0,
+              ageMinutes: ageMinutes != null ? ageMinutes : 0,
               timeLabel,
-              cleanUrl,
               text: text.slice(0, 400).replace(/\n+/g, ' ')
             });
           }
 
           return items;
-        }, { groupInfo: group, currentEpoch });
+        }, { currentEpoch });
 
-        for (const lead of extractedLeads) {
-          const matchResult = matchPostToCampaign(lead.text, activeCampaigns);
+        for (const post of extractedPosts) {
+          if (!newestPostIdSeen) {
+            newestPostIdSeen = post.postId;
+          }
+
+          // Verificar si ya llegamos a la marca de agua anterior
+          if (watermarkPostId && post.postId === watermarkPostId) {
+            console.log(`   🛑 Llegamos a la última publicación procesada anteriormente (ID: ${post.postId}).`);
+            reachedWatermark = true;
+            break;
+          }
+
+          if (post.creationTime && post.creationTime <= watermarkTime) {
+            console.log(`   🛑 Publicación fuera de la ventana reciente (${post.timeLabel}). Deteniendo scroll.`);
+            reachedWatermark = true;
+            break;
+          }
+
+          // CORTE ESTRICTO DE TIEMPO: Si la publicación supera el límite de horas, NO procesar
+          if (post.ageMinutes > maxAgeMinutesAllowed) {
+            continue;
+          }
+
+          // Evaluar intención y campaña
+          const matchResult = matchPostToCampaign(post.text, activeCampaigns);
           if (matchResult.isMatch) {
             const matchedCampaign = matchResult.campaign;
-            console.log(`[Scanner] ¡LEAD ENCONTRADO! Campaña: ${matchedCampaign.name} | Autor: ${lead.author} | Tiempo: ${lead.timeLabel}`);
+            console.log(`   🎯 ¡LEAD RECIENTE ENCONTRADO! [${matchedCampaign.name}] Autor: ${post.author} (${post.timeLabel})`);
 
-            // AI generation of recommendation
             const aiResult = await generateAiReply({
-              authorName: lead.author,
-              postText: lead.text,
+              authorName: post.author,
+              postText: post.text,
               campaign: matchedCampaign
             });
 
-            const marginMinutes = settings.time_window_margin_minutes || 150;
-            const is2h = lead.ageMinutes <= marginMinutes;
+            const cleanUrl = `https://www.facebook.com/groups/${group.id}/posts/${post.postId}/`;
 
             const leadRecord = {
-              id: 'lead_' + lead.postId,
+              id: 'lead_' + post.postId,
               campaign_id: matchedCampaign.id,
               campaign_name: matchedCampaign.name,
               campaign_icon: matchedCampaign.icon || '🏷️',
               brand_name: matchedCampaign.brand_name,
               brand_tag: matchedCampaign.brand_tag,
               phone: matchedCampaign.phone,
-              post_id: lead.postId,
-              author: lead.author,
-              authorAvatar: lead.author.slice(0, 2).toUpperCase(),
+              post_id: post.postId,
+              author: post.author,
+              authorAvatar: post.author.slice(0, 2).toUpperCase(),
               group_name: group.name,
               zone: group.zone,
-              post_direct_url: lead.cleanUrl,
-              content: lead.text.slice(0, 300),
-              exact_time: lead.timeLabel,
-              age_seconds: lead.ageSeconds,
-              age_minutes: lead.ageMinutes,
-              is_recent_2h: is2h,
-              is_recent_4h: lead.ageMinutes <= 240,
+              post_direct_url: cleanUrl,
+              content: post.text.slice(0, 300),
+              exact_time: post.timeLabel,
+              age_seconds: post.ageSeconds,
+              age_minutes: post.ageMinutes,
+              is_recent_2h: post.ageMinutes <= 120,
+              is_recent_4h: post.ageMinutes <= 240,
               generated_reply: aiResult.reply,
               ai_model_used: aiResult.modelUsed,
               is_ai: aiResult.isAi,
@@ -210,13 +221,30 @@ export async function runScanner(customPage = null) {
             foundLeads.push(leadRecord);
           }
         }
+
+        if (reachedWatermark) break;
+
+        // Scroll para cargar siguientes publicaciones del muro
+        await page.evaluate(() => window.scrollBy(0, 1400));
+        await new Promise(r => setTimeout(r, 1500));
       }
+
+      // 2. Actualizar marca de agua del grupo
+      await updateGroupWatermark(group.id, {
+        last_scanned_time: currentEpoch,
+        last_scanned_post_id: newestPostIdSeen || watermarkPostId
+      });
     }
+
+    // 3. Limpiar leads obsoletos mayores a 24 horas para mantener el panel limpio y fresco
+    await cleanOldLeads(24);
+
   } catch (err) {
     console.error("[Scanner] Error durante escaneo:", err);
   } finally {
     isScanning = false;
   }
 
+  console.log(`\n✅ [Scanner] Escaneo finalizado. Nuevos leads encontrados: ${foundLeads.length}\n`);
   return { success: true, found: foundLeads.length };
 }

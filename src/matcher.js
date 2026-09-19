@@ -1,19 +1,38 @@
-// GLOBAL INTENT PATTERNS: Expressing a customer need or question
+// GLOBAL INTENT PATTERNS: Expressing a customer need or question (DEMANDA REAL)
 const INTENT_PATTERNS = [
+  // 1. Solicitud explícita de transporte / móvil / conductor
   /\b(?:busco|busca|buscando|necesito|requiero|preciso|solicito)\s+(?:un|una|alg[uú]n|algun|el|la|buen|buena)?\s*(?:radiotaxi|radio\s*taxi|taxi|uber|didi|indrive|movil|móvil|movilizaci[oó]n|transporte|carrera|carreras|chofer|auto|viaje|viajes|veh[ií]culo|delivery|encomienda|encomiendas)?\b/i,
-  /\b(?:alg[uú]n|algun|algunos|alguna)\s+(?:dato|lugar|contacto|número|numero|picada|local|recomendaci[oó]n|recomendacion)\b/i,
-  /\b(?:qui[eé]n|quien)\s+(?:hace|va\s+a|est[aá]\s+haciendo|viaja\s+a|sale\s+a)\s+(?:carreras?|viajes?|traslados?|fletes?|delivery|repartos?)\b/i,
+  // 2. Preguntas sobre quién realiza servicios o viajes
+  /\b(?:qui[eé]n|quien)\s+(?:hace|va\s+a|est[aá]\s+haciendo|viaja\s+a|sale\s+a)\s+(?:carreras?|viajes?|traslados?|fletes?|delivery|repartos?|encomiendas?)\b/i,
   /\balguien\s+(?:que\s+)?(?:hace|haga|vaya|viaje|est[eé]\s+disponible|disponible\s+para)\s+(?:carreras?|viajes?|traslados?|delivery|encomiendas?)\b/i,
+  // 3. Solicitudes directas o urgentes
   /\bsolicitud\s+de\s+(?:m[oó]vil|movil|taxi|transporte|carreras?|viajes?)\b/i,
-  /\b(?:alg[uú]n|algun|necesito|busco)\s+(?:uber|taxi|radiotaxi|m[oó]vil|movil|chofer|auto|viaje|carrera|traslado)\b/i,
+  /\b(?:alg[uú]n|algun)\s+(?:uber|taxi|radiotaxi|m[oó]vil|movil|chofer|auto|viaje|carrera|traslado)\s+(?:disponible|ahora|hoy|para|hacia|que|de\s+confianza|porfa|porfitas?)\b/i,
+  /\b(?:alg[uú]n|algun|algunos|alguna)\s+(?:dato|contacto|número|numero|recomendaci[oó]n|recomendacion)\s+de\s+(?:radiotaxi|radio\s*taxi|taxi|uber|m[oó]vil|movil|chofer|carreras?|traslados?|sushi|comida|pizza|gasfiter)\b/i,
   /\b(?:traslado|trasladarme|trasladar|ir\s+a|viajar\s+a|llegar\s+a)\s+(?:desde|hacia|a|urgente)\b/i,
-  /\b(?:delivery|despacho|encomienda|encomiendas|paquete)\s+(?:urgente|disponible|para|a)\b/i,
+  /\b(?:delivery|despacho|encomienda|encomiendas|paquete)\s+(?:urgente|para\s+llevar|para\s+traer)\b/i,
   /\b(?:d[oó]nde|donde)\s+(?:puedo\s+comprar|venden|hacen|encuentro|piden)\b/i,
   /\b(?:recomienden|recomiendenme|recomendar|alguna\s+recomendaci[oó]n)\b/i
 ];
 
-// GLOBAL AD / SPAM EXCLUSION PATTERNS
+// GLOBAL AD / SPAM EXCLUSION PATTERNS (OFERTA / PUBLICIDAD DE OTROS CHOFERES Y LOCALES)
 const GLOBAL_AD_PATTERNS = [
+  // Ofertas de choferes y taxis (Oferta de servicios)
+  /\b(?:hago|hacemos|se\s+hacen|realizo|realizamos)\s+(?:carreras?|viajes?|traslados?|fletes?|delivery|repartos?|encomiendas?)\b/i,
+  /\b(?:m[oó]vil|auto|chofer|veh[ií]culo|furg[oó]n|camioneta)\s+disponible\b/i,
+  /\bdisponible\s+(?:para\s+carreras?|para\s+viajes?|para\s+traslados?|para\s+fletes?|para\s+delivery)\b/i,
+  /\bdisponibilidad\s+inmediata\b/i,
+  /\bviajes?\s+(?:especiales|dentro\s+y\s+fuera|al\s+aeropuerto|a\s+regiones)\b/i,
+  /\btarifas?\s+(?:econ[oó]micas?|accesibles?|al\s+bolsillo)\b/i,
+  /\bconsultas?\s+al\s+(?:wsp|whatsapp|dm|interno|inbox)\b/i,
+  /\bhablar\s+al\s+(?:wsp|whatsapp|dm|interno)\b/i,
+  /\bescr[ií]beme\s+al\b/i,
+  /\bescribir\s+al\s+(?:wsp|whatsapp)\b/i,
+  /\bagende\s+(?:su|tu)\s+(?:m[oó]vil|carrera|viaje|traslado)\b/i,
+  /\bflota\s+de\s+m[oó]viles\b/i,
+  /\bconductores\s+responsables\b/i,
+  /\bconvenio\s+empresas\b/i,
+  // Publicidad comercial general
   /\bofrezco\s+(?:servicio|trabajo|mis\s+servicios|productos?)\b/i,
   /\bofrecemos\b/i,
   /\btenemos\s+(?:m[oó]viles|stock|promociones|disponibles)\b/i,
@@ -23,10 +42,11 @@ const GLOBAL_AD_PATTERNS = [
   /\bhaga\s+su\s+pedido\b/i,
   /\bse\s+vende\b/i,
   /\bvendo\b/i,
-  /\bventa\s+de\s+(?:ropa|casa|departamento|terreno|auto)\b/i,
-  /\bflota\s+de\s+m[oó]viles\b/i,
-  /\bconductores\s+responsables\b/i,
-  /\bconvenio\s+empresas\b/i
+  /\bventa\s+de\s+(?:ropa|casa|departamento|terreno|auto|comida)\b/i,
+  // Competidores y auto-promoción
+  /\bradiotaxi\s+(?:fullexpress|full\s*express)\b/i,
+  /\btaxifulla\b/i,
+  /\brt\s*full\b/i
 ];
 
 /**
@@ -55,10 +75,12 @@ export function matchPostToCampaign(text, campaigns) {
     }
   }
 
-  // Also check if text contains question marks or short urgent query
-  if (!hasIntent && (cleanText.includes('?') || cleanText.length < 90)) {
-    // If it mentions specific service directly (e.g. "Algún taxi ahora"), allow
-    hasIntent = true;
+  // Check if text is a customer question asking for services
+  if (!hasIntent && cleanText.includes('?')) {
+    const questionIntent = /\b(?:alg[uú]n|algun|alguien|qui[eé]n|quien|d[oó]nde|donde|habr[aá]|saben|recomiendan|conocer[aá]n)\b/i;
+    if (questionIntent.test(cleanText)) {
+      hasIntent = true;
+    }
   }
 
   if (!hasIntent) {

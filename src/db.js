@@ -231,6 +231,26 @@ export async function deleteGroup(id) {
   return true;
 }
 
+export async function updateGroupWatermark(id, { last_scanned_time, last_scanned_post_id }) {
+  const db = readLocalDb();
+  if (!db.groups) db.groups = [];
+  const group = db.groups.find(g => g.id === id);
+  if (group) {
+    if (last_scanned_time) group.last_scanned_time = last_scanned_time;
+    if (last_scanned_post_id) group.last_scanned_post_id = last_scanned_post_id;
+    writeLocalDb(db);
+  }
+}
+
+export async function cleanOldLeads(maxAgeHours = 24) {
+  const db = readLocalDb();
+  const cutoffSeconds = maxAgeHours * 3600;
+  if (Array.isArray(db.leads)) {
+    db.leads = db.leads.filter(l => (l.age_seconds ?? 0) <= cutoffSeconds);
+    writeLocalDb(db);
+  }
+}
+
 export async function getLeads() {
   const db = readLocalDb();
   const leads = db.leads || [];
