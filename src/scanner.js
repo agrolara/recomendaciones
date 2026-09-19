@@ -65,14 +65,14 @@ export async function runScanner(customPage = null) {
 
       // 1. Navegar al feed cronológico ("Publicaciones nuevas")
       const chronoUrl = `https://www.facebook.com/groups/${group.id}/?sorting_setting=CHRONOLOGICAL`;
-      await page.goto(chronoUrl, { waitUntil: 'load', settleMs: 2500 }).catch(console.error);
-      await new Promise(r => setTimeout(r, 1500));
+      await page.goto(chronoUrl, { waitUntil: 'load', settleMs: 3000 }).catch(console.error);
+      await new Promise(r => setTimeout(r, 2500));
 
       let newestPostIdSeen = null;
       let reachedWatermark = false;
 
-      // Scroll inteligente: hasta 3 iteraciones progresivas hacia abajo
-      for (let scrollStep = 0; scrollStep < 3; scrollStep++) {
+      // Scroll inteligente: hasta 7 iteraciones progresivas hacia abajo para cubrir grupos de alto tráfico
+      for (let scrollStep = 0; scrollStep < 7; scrollStep++) {
         const extractedPosts = await page.evaluate(({ currentEpoch }) => {
           // Extraer datos Relay de los scripts
           const scripts = Array.from(document.querySelectorAll('script')).map(s => s.innerText);
@@ -100,7 +100,7 @@ export async function runScanner(customPage = null) {
 
           for (const card of cards) {
             let text = (card.innerText || '').replace(/(?:Facebook\s*)+/gi, '').trim();
-            if (text.length < 25 || text.includes('ordenar feed') || text.includes('Filtros')) continue;
+            if (text.length < 15 || text.includes('ordenar feed') || text.includes('Filtros')) continue;
 
             const userLinks = Array.from(card.querySelectorAll('a[href*="/user/"]'));
             const authorEl = userLinks.find(a => a.innerText && a.innerText.trim().length > 2);
@@ -123,10 +123,33 @@ export async function runScanner(customPage = null) {
               }
             }
 
+            if (!postId) {
+              const cardHtml = card.outerHTML || '';
+              const mHtml = cardHtml.match(/(?:post_id|story_fbid|posts|permalink)[:/\"=]+(\d{10,})/);
+              if (mHtml) postId = mHtml[1];
+            }
+
             if (!postId) continue;
 
-            const ageSeconds = creationTime ? (currentEpoch - creationTime) : null;
-            const ageMinutes = ageSeconds != null ? Math.floor(ageSeconds / 60) : null;
+            let ageSeconds = creationTime ? (currentEpoch - creationTime) : null;
+            let ageMinutes = ageSeconds != null ? Math.floor(ageSeconds / 60) : null;
+
+            // Detección de antigüedad basada en texto relativo (ej: "25 min", "hace 1 h")
+            if (ageMinutes == null) {
+              const matchMin = text.match(/(\d+)\s*(?:min|m)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*min/i);
+              const matchHours = text.match(/(\d+)\s*(?:h|hrs?|horas?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*h/i);
+              const matchDays = text.match(/(\d+)\s*(?:d|d[ií]as?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*d/i);
+              if (matchMin) {
+                ageMinutes = parseInt(matchMin[1], 10);
+                ageSeconds = ageMinutes * 60;
+              } else if (matchHours) {
+                ageMinutes = parseInt(matchHours[1], 10) * 60;
+                ageSeconds = ageMinutes * 60;
+              } else if (matchDays) {
+                ageMinutes = parseInt(matchDays[1], 10) * 1440;
+                ageSeconds = ageMinutes * 60;
+              }
+            }
 
             let timeLabel = 'Reciente';
             if (ageMinutes != null) {
@@ -250,14 +273,134 @@ export async function runScanner(customPage = null) {
         await new Promise(r => setTimeout(r, 1500));
       }
 
-      // 2. Actualizar marca de agua del grupo
+      // 2. Búsqueda dirigida interna en el grupo (In-Group Search)
+      // Garantiza encontrar solicitudes de servicios específicos (ej: taxi, uber) aunque se hayan sepultado
+      // bajo decenas de publicaciones de ropa o comida en grupos de alto volumen como Quilicura Vende.
+      const searchKeywords = ['taxi', 'uber'];
+      for (const kw of searchKeywords) {
+        try {
+          const searchUrl = `https://www.facebook.com/groups/${group.id}/search/?q=${encodeURIComponent(kw)}`;
+          await page.goto(searchUrl, { waitUntil: 'load', settleMs: 2500 }).catch(() => {});
+          await new Promise(r => setTimeout(r, 2000));
+
+          const searchPosts = await page.evaluate(({ currentEpoch }) => {
+            const allDivs = Array.from(document.querySelectorAll('div[role="feed"] > div, div[role="article"], div.x1yztbdb'));
+            const results = [];
+            for (const card of allDivs) {
+              const text = (card.innerText || '').replace(/(?:Facebook\s*)+/gi, '').trim();
+              if (text.length < 15 || text.includes('Resultados de búsqueda') || text.includes('Filtros')) continue;
+
+              const userLinks = Array.from(card.querySelectorAll('a[href*="/user/"]'));
+              const authorEl = userLinks.find(a => a.innerText && a.innerText.trim().length > 2);
+              let author = authorEl ? authorEl.innerText.trim() : 'Vecino';
+              author = author.replace(/^(?:Publicación de|Comentario de)\s*/i, '').trim();
+
+              const links = Array.from(card.querySelectorAll('a[href]'));
+              let postId = null;
+              for (const a of links) {
+                const m1 = a.href.match(/\/(?:posts|permalink)\/(\d+)/);
+                if (m1) { postId = m1[1]; break; }
+                const m2 = a.href.match(/set=pcb\.(\d+)/) || a.href.match(/set=gm\.(\d+)/);
+                if (m2) { postId = m2[1]; break; }
+              }
+              if (!postId) {
+                const cardHtml = card.outerHTML || '';
+                const mHtml = cardHtml.match(/(?:post_id|story_fbid|posts|permalink)[:/\"=]+(\d{10,})/);
+                if (mHtml) postId = mHtml[1];
+              }
+              if (!postId) continue;
+
+              let ageMinutes = 30; // valor razonable de búsqueda
+              const matchMin = text.match(/(\d+)\s*(?:min|m)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*min/i);
+              const matchHours = text.match(/(\d+)\s*(?:h|hrs?|horas?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*h/i);
+              if (matchMin) ageMinutes = parseInt(matchMin[1], 10);
+              else if (matchHours) ageMinutes = parseInt(matchHours[1], 10) * 60;
+
+              results.push({
+                postId,
+                author,
+                ageMinutes,
+                ageSeconds: ageMinutes * 60,
+                timeLabel: `Hace ${ageMinutes} min`,
+                text: text.slice(0, 400).replace(/\n+/g, ' ')
+              });
+            }
+            return results;
+          }, { currentEpoch });
+
+          for (const sp of searchPosts) {
+            if (sp.ageMinutes > maxAgeMinutesAllowed) continue;
+            const matchResult = matchPostToCampaign(sp.text, activeCampaigns);
+            if (matchResult.isMatch && !foundLeads.some(l => l.post_id === sp.postId)) {
+              const matchedCampaign = matchResult.campaign;
+              console.log(`   🎯 ¡LEAD RECIENTE ENCONTRADO EN BÚSQUEDA INTERNA! [${matchedCampaign.name}] Autor: ${sp.author} (${sp.timeLabel})`);
+
+              const aiResult = await generateAiReply({
+                authorName: sp.author,
+                postText: sp.text,
+                campaign: matchedCampaign
+              });
+
+              const cleanUrl = `https://www.facebook.com/groups/${group.id}/posts/${sp.postId}/`;
+
+              let status = 'pending';
+              if (settings.auto_reply_enabled && PageClass) {
+                console.log(`   🤖 [Auto-Responder] Publicando respuesta para ${sp.author}...`);
+                try {
+                  const { publishComment } = await import('./commenter.js');
+                  const commentRes = await publishComment({
+                    postId: sp.postId,
+                    postDirectUrl: cleanUrl,
+                    commentText: aiResult.reply
+                  });
+                  if (commentRes && commentRes.success) status = 'commented';
+                } catch (e) {}
+              }
+
+              const leadRecord = {
+                id: `lead_${sp.postId}`,
+                campaign_id: matchedCampaign.id,
+                campaign_name: matchedCampaign.name,
+                campaign_icon: matchedCampaign.icon || '🏷️',
+                brand_name: matchedCampaign.brand_name,
+                brand_tag: matchedCampaign.brand_tag,
+                phone: matchedCampaign.phone,
+                post_id: sp.postId,
+                author: sp.author,
+                authorAvatar: sp.author.slice(0, 2).toUpperCase(),
+                group_name: group.name,
+                zone: group.zone,
+                post_direct_url: cleanUrl,
+                content: sp.text.slice(0, 300),
+                exact_time: sp.timeLabel,
+                age_seconds: sp.ageSeconds,
+                age_minutes: sp.ageMinutes,
+                is_recent_2h: sp.ageMinutes <= 120,
+                is_recent_4h: sp.ageMinutes <= 240,
+                generated_reply: aiResult.reply,
+                ai_model_used: aiResult.modelUsed,
+                is_ai: aiResult.isAi,
+                status,
+                created_at: new Date().toISOString()
+              };
+
+              await saveLead(leadRecord);
+              foundLeads.push(leadRecord);
+            }
+          }
+        } catch (e) {
+          // Continuar con el siguiente grupo si la búsqueda interna falla
+        }
+      }
+
+      // 3. Actualizar marca de agua del grupo
       await updateGroupWatermark(group.id, {
         last_scanned_time: currentEpoch,
         last_scanned_post_id: newestPostIdSeen || watermarkPostId
       });
     }
 
-    // 3. Limpiar leads obsoletos mayores a 24 horas para mantener el panel limpio y fresco
+    // 4. Limpiar leads obsoletos mayores a 24 horas para mantener el panel limpio y fresco
     await cleanOldLeads(24);
 
   } catch (err) {

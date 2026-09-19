@@ -147,6 +147,30 @@ app.get('/api/leads', async (req, res) => {
   }
 });
 
+app.post('/api/leads/sync', async (req, res) => {
+  try {
+    const leadsList = req.body.leads || req.body;
+    if (Array.isArray(leadsList)) {
+      for (const l of leadsList) {
+        await saveLead(l);
+      }
+      return res.json({ success: true, count: leadsList.length });
+    }
+    res.status(400).json({ error: "Se esperaba array de leads" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/leads', async (req, res) => {
+  try {
+    const saved = await saveLead(req.body);
+    res.json({ success: true, lead: saved });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.post('/api/leads/status', async (req, res) => {
   try {
     const { id, status } = req.body;
