@@ -59,6 +59,8 @@ async function fetchGroups() {
   } catch(e) { console.error("Error cargando grupos:", e); }
 }
 
+let isAutoReplyEnabled = false;
+
 async function fetchSettings() {
   try {
     const res = await fetch('/api/settings');
@@ -72,7 +74,47 @@ async function fetchSettings() {
       const badge = document.getElementById('active-model-badge');
       if (badge) badge.innerText = `🤖 ${settings.openrouter_model.split('/')[1] || settings.openrouter_model}`;
     }
+    updateAutoReplyUI(settings.auto_reply_enabled === true);
   } catch(e) { console.error("Error cargando configuración:", e); }
+}
+
+async function toggleAutoReply() {
+  isAutoReplyEnabled = !isAutoReplyEnabled;
+  updateAutoReplyUI(isAutoReplyEnabled);
+
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auto_reply_enabled: isAutoReplyEnabled })
+    });
+    const data = await res.json();
+    if (data.success) {
+      settings.auto_reply_enabled = isAutoReplyEnabled;
+    }
+  } catch(e) {
+    console.error("Error guardando auto-reply:", e);
+  }
+}
+
+function updateAutoReplyUI(enabled) {
+  isAutoReplyEnabled = !!enabled;
+  const btn = document.getElementById('btn-toggle-autoreply');
+  const dot = document.getElementById('autoreply-status-dot');
+  const text = document.getElementById('autoreply-text');
+  if (!btn || !dot || !text) return;
+
+  if (isAutoReplyEnabled) {
+    btn.className = "px-3.5 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold rounded-xl transition flex items-center gap-2 transform active:scale-95 shadow-lg shadow-emerald-950/40";
+    dot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 radar-pulse";
+    text.textContent = "⚡ Auto-Contestar: ON";
+    btn.title = "Auto-Contestar ACTIVADO: La IA responderá automáticamente en Facebook al detectar solicitudes";
+  } else {
+    btn.className = "px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-2 transform active:scale-95";
+    dot.className = "w-2.5 h-2.5 rounded-full bg-slate-500";
+    text.textContent = "✋ Auto-Contestar: OFF (Manual)";
+    btn.title = "Auto-Contestar APAGADO: Debes presionar manualmente el botón para publicar";
+  }
 }
 
 function renderAll() {

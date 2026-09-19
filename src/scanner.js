@@ -190,6 +190,27 @@ export async function runScanner(customPage = null) {
 
             const cleanUrl = `https://www.facebook.com/groups/${group.id}/posts/${post.postId}/`;
 
+            let status = 'pending';
+
+            // MODO AUTO-CONTESTAR: Si el usuario activó la respuesta automática
+            if (settings.auto_reply_enabled && PageClass) {
+              console.log(`   🤖 [Auto-Responder] Modo Automático ACTIVO: Publicando respuesta para ${post.author}...`);
+              try {
+                const { publishComment } = await import('./commenter.js');
+                const commentRes = await publishComment({
+                  postId: post.postId,
+                  postDirectUrl: cleanUrl,
+                  commentText: aiResult.reply
+                });
+                if (commentRes && commentRes.success) {
+                  status = 'commented';
+                  console.log(`   ✅ [Auto-Responder] ¡Comentario publicado automáticamente con éxito!`);
+                }
+              } catch (pubErr) {
+                console.warn(`   ⚠️ [Auto-Responder] No se pudo auto-contestar:`, pubErr.message);
+              }
+            }
+
             const leadRecord = {
               id: 'lead_' + post.postId,
               campaign_id: matchedCampaign.id,
@@ -213,7 +234,7 @@ export async function runScanner(customPage = null) {
               generated_reply: aiResult.reply,
               ai_model_used: aiResult.modelUsed,
               is_ai: aiResult.isAi,
-              status: 'pending',
+              status,
               created_at: new Date().toISOString()
             };
 

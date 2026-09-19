@@ -36,13 +36,17 @@ async function syncRemoteSettings() {
     const res = await fetch(`${REMOTE_URL}/api/settings`);
     if (!res.ok) return;
     const data = await res.json();
-    if (data.settings && data.settings.openrouter_api_key) {
+    if (data.settings) {
       const localSettings = await getSettings();
-      if (localSettings.openrouter_api_key !== data.settings.openrouter_api_key) {
-        console.log("[Agente Local] Sincronizando OpenRouter API Key desde el servidor Cloud...");
+      if (
+        localSettings.openrouter_api_key !== data.settings.openrouter_api_key ||
+        localSettings.auto_reply_enabled !== data.settings.auto_reply_enabled
+      ) {
+        console.log(`[Agente Local] Sincronizando ajustes Cloud (Auto-Reply: ${data.settings.auto_reply_enabled ? 'ON' : 'OFF'})...`);
         await saveSettings({
           openrouter_api_key: data.settings.openrouter_api_key,
-          openrouter_model: data.settings.openrouter_model || "deepseek/deepseek-chat"
+          openrouter_model: data.settings.openrouter_model || "deepseek/deepseek-chat",
+          auto_reply_enabled: data.settings.auto_reply_enabled === true
         });
       }
     }
@@ -142,9 +146,13 @@ async function syncLeadsToCloud() {
 async function checkAutoScan() {
   if (isBusy) return;
   const now = Date.now();
-  if (now - lastAutoScan > AUTO_SCAN_INTERVAL) {
+  const localSettings = await getSettings();
+  const intervalMinutes = localSettings.auto_scan_interval_minutes || 20;
+  const intervalMs = intervalMinutes * 60 * 1000;
+
+  if (now - lastAutoScan > intervalMs) {
     lastAutoScan = now;
-    console.log("[Agente Local] Iniciando escaneo periódico automático de Facebook...");
+    console.log(`[Agente Local] Iniciando escaneo periódico automático de Facebook (intervalo: ${intervalMinutes} min)...`);
     isBusy = true;
     try {
       await runScanner();

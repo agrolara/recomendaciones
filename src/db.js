@@ -31,7 +31,8 @@ const INITIAL_SETTINGS = {
   openrouter_model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat",
   time_window_margin_minutes: 150,
   auto_scan_interval_minutes: 15,
-  local_agent_url: process.env.LOCAL_AGENT_URL || "http://localhost:19825"
+  local_agent_url: process.env.LOCAL_AGENT_URL || "http://localhost:19825",
+  auto_reply_enabled: false
 };
 
 let pgPool = null;

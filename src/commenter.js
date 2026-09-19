@@ -1,21 +1,23 @@
 import { updateLeadStatus } from './db.js';
 
-export async function publishComment({ postId, postDirectUrl, commentText }) {
+export async function publishComment({ postId, postDirectUrl, commentText, customPage = null }) {
   console.log(`[Commenter] Solicitud de publicación para: ${postDirectUrl}`);
 
   if (!postDirectUrl || (!postDirectUrl.includes('/posts/') && !postDirectUrl.includes('/permalink/'))) {
     throw new Error("SEGURIDAD ACTIVADA: El enlace recibido (" + postDirectUrl + ") es una portada de grupo y no una publicación directa. Se canceló para no comentar en un post ajeno.");
   }
 
-  let PageClass = null;
-  try {
-    const module = await import('file:///C:/Users/Usuario/AppData/Roaming/npm/node_modules/@jackwener/opencli/dist/src/browser/page.js');
-    PageClass = module.Page;
-  } catch (e) {
-    throw new Error("OpenCLI no está disponible en este entorno local para automatizar el navegador.");
+  let page = customPage;
+  if (!page) {
+    let PageClass = null;
+    try {
+      const module = await import('file:///C:/Users/Usuario/AppData/Roaming/npm/node_modules/@jackwener/opencli/dist/src/browser/page.js');
+      PageClass = module.Page;
+    } catch (e) {
+      throw new Error("OpenCLI no está disponible en este entorno local para automatizar el navegador.");
+    }
+    page = new PageClass('b9mz6zfk');
   }
-
-  const page = new PageClass('b9mz6zfk');
 
   console.log(`[Commenter] Navegando a ${postDirectUrl}...`);
   await page.goto(postDirectUrl, { waitUntil: 'load', settleMs: 3000 });
