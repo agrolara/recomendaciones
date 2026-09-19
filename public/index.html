@@ -114,9 +114,15 @@
           </select>
         </div>
 
-        <div class="flex items-center gap-1 text-[11px] text-emerald-400 font-mono">
-          <i class="fa-solid fa-arrow-down-short-wide"></i>
-          <span>Orden: Menor tiempo a mayor tiempo (Más recientes primero)</span>
+        <div class="flex items-center gap-3">
+          <button onclick="clearRadar()" class="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 rounded-lg text-xs font-bold transition flex items-center gap-1.5" title="Eliminar todas las publicaciones del radar">
+            <i class="fa-solid fa-trash-can"></i>
+            <span>Vaciar Radar</span>
+          </button>
+          <div class="hidden sm:flex items-center gap-1 text-[11px] text-emerald-400 font-mono">
+            <i class="fa-solid fa-arrow-down-short-wide"></i>
+            <span>Más recientes primero</span>
+          </div>
         </div>
       </div>
 

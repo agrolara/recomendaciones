@@ -284,6 +284,22 @@ export async function updateLeadStatus(id, status) {
   return null;
 }
 
+export async function deleteLead(id) {
+  const db = readLocalDb();
+  if (Array.isArray(db.leads)) {
+    db.leads = db.leads.filter(l => l.id !== id && l.post_id !== id);
+    writeLocalDb(db);
+  }
+  return true;
+}
+
+export async function clearAllLeads() {
+  const db = readLocalDb();
+  db.leads = [];
+  writeLocalDb(db);
+  return true;
+}
+
 export async function getSettings() {
   const db = readLocalDb();
   return db.settings || INITIAL_SETTINGS;

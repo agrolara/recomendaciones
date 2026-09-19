@@ -529,17 +529,26 @@ async function regenerateReply(postId, campaignId) {
 }
 
 async function dismissLead(postId) {
-  if (!confirm("¿Deseas descartar esta solicitud de la lista?")) return;
   try {
-    await fetch('/api/leads/status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: postId, status: 'dismissed' })
-    });
-    leads = leads.filter(l => l.post_id !== postId);
+    await fetch(`/api/leads/${postId}`, { method: 'DELETE' });
+    leads = leads.filter(l => l.post_id !== postId && l.id !== postId);
     renderLeads();
     updateCounters();
-  } catch(e) { alert("Error: " + e.message); }
+  } catch(e) {
+    console.error("Error eliminando publicación:", e);
+  }
+}
+
+async function clearRadar() {
+  if (!confirm("¿Seguro que deseas vaciar todas las publicaciones del radar?")) return;
+  try {
+    await fetch('/api/leads', { method: 'DELETE' });
+    leads = [];
+    renderLeads();
+    updateCounters();
+  } catch(e) {
+    alert("Error vaciando radar: " + e.message);
+  }
 }
 
 // ----------------------------------------------------

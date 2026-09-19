@@ -15,6 +15,8 @@ import {
   deleteGroup,
   getLeads,
   saveLead,
+  deleteLead,
+  clearAllLeads,
   updateLeadStatus,
   getSettings,
   saveSettings
@@ -136,6 +138,24 @@ app.post('/api/leads/status', async (req, res) => {
     res.json({ success: true, lead: updated });
   } catch (e) {
     res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/leads', async (req, res) => {
+  try {
+    await clearAllLeads();
+    res.json({ success: true, message: "Todas las publicaciones fueron eliminadas" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/leads/:id', async (req, res) => {
+  try {
+    await deleteLead(req.params.id);
+    res.json({ success: true, id: req.params.id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
