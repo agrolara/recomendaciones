@@ -8,20 +8,27 @@ const INTENT_PATTERNS = [
   // 3. Solicitudes directas o urgentes
   /\bsolicitud\s+de\s+(?:m[oó]vil|movil|taxi|transporte|carreras?|viajes?)\b/i,
   /\b(?:alg[uú]n|algun)\s+(?:uber|taxi|radiotaxi|m[oó]vil|movil|chofer|auto|viaje|carrera|traslado)\s+(?:disponible|ahora|hoy|para|hacia|que|de\s+confianza|porfa|porfitas?)\b/i,
-  /\b(?:alg[uú]n|algun|algunos|alguna)\s+(?:dato|contacto|número|numero|recomendaci[oó]n|recomendacion)\s+de\s+(?:radiotaxi|radio\s*taxi|taxi|uber|m[oó]vil|movil|chofer|carreras?|traslados?|sushi|comida|pizza|gasfiter)\b/i,
+  /\b(?:alg[uú]n|algun|algunos|alguna)\s+(?:dato|contacto|número|numero|recomendaci[oó]n|recomendacion)\s+de\s+(?:radiotaxi|radio\s*taxi|taxi|uber|m[oó]vil|movil|chofer|carreras?|traslados?)\b/i,
   /\b(?:traslado|trasladarme|trasladar|ir\s+a|viajar\s+a|llegar\s+a)\s+(?:desde|hacia|a|urgente)\b/i,
   /\b(?:delivery|despacho|encomienda|encomiendas|paquete)\s+(?:urgente|para\s+llevar|para\s+traer)\b/i,
   /\b(?:d[oó]nde|donde)\s+(?:puedo\s+comprar|venden|hacen|encuentro|piden)\b/i,
-  /\b(?:recomienden|recomiendenme|recomendar|alguna\s+recomendaci[oó]n)\b/i
+  /\b(?:recomienden|recomiendenme|alguna\s+recomendaci[oó]n|qu[eé]\s+recomiendan)\b/i
 ];
 
-// GLOBAL AD / SPAM EXCLUSION PATTERNS (OFERTA / PUBLICIDAD DE OTROS CHOFERES Y LOCALES)
+// GLOBAL AD / SPAM EXCLUSION PATTERNS (OFERTA / PUBLICIDAD DE OTROS CHOFERES, PERMUTAS Y LOCALES)
 const GLOBAL_AD_PATTERNS = [
   // Ofertas de choferes y taxis (Oferta de servicios)
   /\b(?:hago|hacemos|se\s+hacen|realizo|realizamos)\s+(?:carreras?|viajes?|traslados?|fletes?|delivery|repartos?|encomiendas?)\b/i,
   /\b(?:m[oó]vil|auto|chofer|veh[ií]culo|furg[oó]n|camioneta)\s+disponible\b/i,
-  /\bdisponible\s+(?:para\s+carreras?|para\s+viajes?|para\s+traslados?|para\s+fletes?|para\s+delivery)\b/i,
+  /\b(?:estoy|quedo|me\s+encuentro)\s+disponible\s+para\b/i,
+  /\bdisponible\s+para\s+(?:fletes?|mudanzas?)\b/i,
+  /\bdisponible\s+para\s+(?:carreras?|viajes?|traslados?|delivery)\s*(?:[,.]|\s*(?:consultas?|al\s+wsp|al\s+whatsapp|al\s+inbox|al\s+dm|escribir|\+?56))/i,
   /\bdisponibilidad\s+inmediata\b/i,
+  /\b(?:haciendo|tirando)\s+(?:carreras?|viajes?|traslados?)\b/i,
+  /\bcarreritas?\s+disponibles?\b/i,
+  /\bauto\s+(?:con\s+chofer\s+)?disponible\b/i,
+  /\b(?:voy\s+saliendo|salgo)\s+(?:a|para|hacia|con\s+cupo)\b/i,
+  /\bcupos?\s+disponibles?\b/i,
   /\bviajes?\s+(?:especiales|dentro\s+y\s+fuera|al\s+aeropuerto|a\s+regiones)\b/i,
   /\btarifas?\s+(?:econ[oó]micas?|accesibles?|al\s+bolsillo)\b/i,
   /\bconsultas?\s+al\s+(?:wsp|whatsapp|dm|interno|inbox)\b/i,
@@ -32,6 +39,14 @@ const GLOBAL_AD_PATTERNS = [
   /\bflota\s+de\s+m[oó]viles\b/i,
   /\bconductores\s+responsables\b/i,
   /\bconvenio\s+empresas\b/i,
+  /\b(?:wsp|whatsapp|fono|celular|inbox|dm)[:\s]*\+?56?\s*9?\s*\d{4}/i,
+  /\binteresados?\s*(?:al|por|escribir|comunicarse)\b/i,
+  /\bcotice\b/i,
+  /\bcotizaciones\b/i,
+  // Terceros recomendando o avisos de permuta
+  /\b(?:quiero|paso\s+a|vengo\s+a)\s+recomendar\b/i,
+  /\brecomiendo\s+a\b/i,
+  /\bpermut[ao]\b/i,
   // Publicidad comercial general
   /\bofrezco\s+(?:servicio|trabajo|mis\s+servicios|productos?)\b/i,
   /\bofrecemos\b/i,

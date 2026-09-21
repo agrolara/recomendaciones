@@ -29,7 +29,7 @@ export async function runScanner(customPage = null) {
     const campaigns = await getCampaigns();
     const settings = await getSettings();
 
-    const maxAgeMinutesAllowed = settings.time_window_margin_minutes || 180; // Máximo 3 horas por defecto
+    const maxAgeMinutesAllowed = Math.min(settings.time_window_margin_minutes || 120, 120); // Máximo estricto de 2 horas (120 min)
     const activeGroups = groups.filter(g => g.is_active);
     const activeCampaigns = campaigns.filter(c => c.is_active);
 
@@ -57,11 +57,11 @@ export async function runScanner(customPage = null) {
     for (const group of activeGroups) {
       console.log(`\n🔍 [Scanner] Grupo: ${group.name} (${group.id})`);
 
-      // Marca de agua: Si no existe, revisar como máximo las últimas 3 horas
+      // Marca de agua: Si no existe, revisar como máximo las últimas 2 horas
       const watermarkTime = group.last_scanned_time || (currentEpoch - (maxAgeMinutesAllowed * 60));
       const watermarkPostId = group.last_scanned_post_id || null;
 
-      console.log(`   ⏱️ Marca de agua: ${group.last_scanned_time ? new Date(group.last_scanned_time * 1000).toLocaleTimeString('es-CL') : 'Primera vez (últimas 3h)'}`);
+      console.log(`   ⏱️ Marca de agua: ${group.last_scanned_time ? new Date(group.last_scanned_time * 1000).toLocaleTimeString('es-CL') : 'Primera vez (últimas 2h)'}`);
 
       // 1. Navegar al feed cronológico ("Publicaciones nuevas")
       const chronoUrl = `https://www.facebook.com/groups/${group.id}/?sorting_setting=CHRONOLOGICAL`;
@@ -70,6 +70,7 @@ export async function runScanner(customPage = null) {
 
       let newestPostIdSeen = null;
       let reachedWatermark = false;
+      let consecutiveOldPosts = 0;
 
       // Scroll inteligente: hasta 7 iteraciones progresivas hacia abajo para cubrir grupos de alto tráfico
       for (let scrollStep = 0; scrollStep < 7; scrollStep++) {
@@ -99,8 +100,12 @@ export async function runScanner(customPage = null) {
           const items = [];
 
           for (const card of cards) {
-            let text = (card.innerText || '').replace(/(?:Facebook\s*)+/gi, '').trim();
-            if (text.length < 15 || text.includes('ordenar feed') || text.includes('Filtros')) continue;
+            let fullText = (card.innerText || '').replace(/(?:Facebook\s*)+/gi, '').trim();
+            if (fullText.length < 15 || fullText.includes('ordenar feed') || fullText.includes('Filtros')) continue;
+
+            // Aislar el texto principal de la publicación antes de los comentarios y botones de acción
+            const textParts = fullText.split(/\n\s*(?:Me gusta|Comentar|Compartir|Responder|Todas las respuestas|Ver más comentarios)/i);
+            const mainText = (textParts[0] || fullText).trim();
 
             const userLinks = Array.from(card.querySelectorAll('a[href*="/user/"]'));
             const authorEl = userLinks.find(a => a.innerText && a.innerText.trim().length > 2);
@@ -131,14 +136,18 @@ export async function runScanner(customPage = null) {
 
             if (!postId) continue;
 
-            let ageSeconds = creationTime ? (currentEpoch - creationTime) : null;
+            let ageSeconds = creationTime ? Math.max(0, currentEpoch - creationTime) : null;
             let ageMinutes = ageSeconds != null ? Math.floor(ageSeconds / 60) : null;
 
             // Detección de antigüedad basada en texto relativo (ej: "25 min", "hace 1 h")
             if (ageMinutes == null) {
-              const matchMin = text.match(/(\d+)\s*(?:min|m)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*min/i);
-              const matchHours = text.match(/(\d+)\s*(?:h|hrs?|horas?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*h/i);
-              const matchDays = text.match(/(\d+)\s*(?:d|d[ií]as?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*d/i);
+              const matchMin = fullText.match(/(\d+)\s*(?:min|m)(?:\s|\.|$)/i) || fullText.match(/hace\s*(\d+)\s*min/i);
+              const matchHours = fullText.match(/(\d+)\s*(?:h|hrs?|horas?)(?:\s|\.|$)/i) || fullText.match(/hace\s*(\d+)\s*h/i);
+              const matchDays = fullText.match(/(\d+)\s*(?:d|d[ií]as?)(?:\s|\.|$)/i) || fullText.match(/hace\s*(\d+)\s*d/i);
+              const matchWeeks = fullText.match(/(\d+)\s*(?:sem|semanas?)(?:\s|\.|$)/i) || fullText.match(/hace\s*(\d+)\s*sem/i);
+              const matchMonths = fullText.match(/(\d+)\s*(?:mes|meses)(?:\s|\.|$)/i) || fullText.match(/hace\s*(\d+)\s*mes/i);
+              const matchYears = fullText.match(/(\d+)\s*(?:a[ñn]os?)(?:\s|\.|$)/i) || fullText.match(/hace\s*(\d+)\s*a/i);
+
               if (matchMin) {
                 ageMinutes = parseInt(matchMin[1], 10);
                 ageSeconds = ageMinutes * 60;
@@ -148,6 +157,9 @@ export async function runScanner(customPage = null) {
               } else if (matchDays) {
                 ageMinutes = parseInt(matchDays[1], 10) * 1440;
                 ageSeconds = ageMinutes * 60;
+              } else if (matchWeeks || matchMonths || matchYears) {
+                ageMinutes = 999999;
+                ageSeconds = 999999 * 60;
               }
             }
 
@@ -167,9 +179,9 @@ export async function runScanner(customPage = null) {
               author,
               creationTime,
               ageSeconds: ageSeconds != null ? ageSeconds : 0,
-              ageMinutes: ageMinutes != null ? ageMinutes : 0,
+              ageMinutes: ageMinutes != null ? ageMinutes : 999999,
               timeLabel,
-              text: text.slice(0, 400).replace(/\n+/g, ' ')
+              text: mainText.slice(0, 400).replace(/\n+/g, ' ')
             });
           }
 
@@ -181,22 +193,24 @@ export async function runScanner(customPage = null) {
             newestPostIdSeen = post.postId;
           }
 
-          // Verificar si ya llegamos a la marca de agua anterior
-          if (watermarkPostId && post.postId === watermarkPostId) {
+          // Verificar si ya llegamos a la marca de agua anterior (solo si no es en la primera tarjeta fijada)
+          if (watermarkPostId && post.postId === watermarkPostId && scrollStep > 0) {
             console.log(`   🛑 Llegamos a la última publicación procesada anteriormente (ID: ${post.postId}).`);
             reachedWatermark = true;
             break;
           }
 
-          if (post.creationTime && post.creationTime <= watermarkTime) {
-            console.log(`   🛑 Publicación fuera de la ventana reciente (${post.timeLabel}). Deteniendo scroll.`);
-            reachedWatermark = true;
-            break;
-          }
-
-          // CORTE ESTRICTO DE TIEMPO: Si la publicación supera el límite de horas, NO procesar
+          // Si la publicación es más antigua que el límite estricto de 2 horas (120 min)
           if (post.ageMinutes > maxAgeMinutesAllowed) {
+            consecutiveOldPosts++;
+            if (consecutiveOldPosts >= 4) {
+              console.log(`   🛑 4 publicaciones consecutivas fuera de la ventana reciente (${post.timeLabel}). Deteniendo scroll.`);
+              reachedWatermark = true;
+              break;
+            }
             continue;
+          } else {
+            consecutiveOldPosts = 0;
           }
 
           // Evaluar intención y campaña
@@ -310,19 +324,38 @@ export async function runScanner(customPage = null) {
               }
               if (!postId) continue;
 
-              let ageMinutes = 30; // valor razonable de búsqueda
+              // Aislar texto principal antes de los comentarios
+              const textParts = text.split(/\n\s*(?:Me gusta|Comentar|Compartir|Responder|Todas las respuestas|Ver más comentarios)/i);
+              const mainText = (textParts[0] || text).trim();
+
+              let ageMinutes = null;
               const matchMin = text.match(/(\d+)\s*(?:min|m)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*min/i);
               const matchHours = text.match(/(\d+)\s*(?:h|hrs?|horas?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*h/i);
-              if (matchMin) ageMinutes = parseInt(matchMin[1], 10);
-              else if (matchHours) ageMinutes = parseInt(matchHours[1], 10) * 60;
+              const matchDays = text.match(/(\d+)\s*(?:d|d[ií]as?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*d/i);
+              const matchWeeks = text.match(/(\d+)\s*(?:sem|semanas?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*sem/i);
+              const matchMonths = text.match(/(\d+)\s*(?:mes|meses)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*mes/i);
+              const matchYears = text.match(/(\d+)\s*(?:a[ñn]os?)(?:\s|\.|$)/i) || text.match(/hace\s*(\d+)\s*a/i);
+
+              if (matchMin) {
+                ageMinutes = parseInt(matchMin[1], 10);
+              } else if (matchHours) {
+                ageMinutes = parseInt(matchHours[1], 10) * 60;
+              } else if (matchDays) {
+                ageMinutes = parseInt(matchDays[1], 10) * 1440;
+              } else if (matchWeeks || matchMonths || matchYears) {
+                ageMinutes = 999999;
+              }
+
+              // Estricto: Si no tiene indicador explícito y verificable de minutos u horas recientes, descartar
+              if (ageMinutes == null || ageMinutes > 120) continue;
 
               results.push({
                 postId,
                 author,
                 ageMinutes,
                 ageSeconds: ageMinutes * 60,
-                timeLabel: `Hace ${ageMinutes} min`,
-                text: text.slice(0, 400).replace(/\n+/g, ' ')
+                timeLabel: ageMinutes < 60 ? `Hace ${ageMinutes} min` : `Hace ${Math.floor(ageMinutes / 60)} h ${ageMinutes % 60} min`,
+                text: mainText.slice(0, 400).replace(/\n+/g, ' ')
               });
             }
             return results;
