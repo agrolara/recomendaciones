@@ -15,14 +15,13 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-COPY --from=builder /app /app
+RUN apk add --no-cache su-exec
 
-RUN chown -R node:node /app
-USER node
+COPY --from=builder /app /app
 
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
-CMD ["node", "src/server.js"]
+CMD ["sh", "-c", "mkdir -p /app/data && chown -R node:node /app/data && chmod -R 775 /app/data && exec su-exec node node src/server.js"]
